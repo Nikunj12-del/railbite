@@ -166,15 +166,16 @@ const foodItems = [
     }
 ];
 
-const seedDatabase = async () => {
+const seedDatabase = async (shouldCloseConnection = false) => {
     try {
-        if (!process.env.MONGO_URI) {
-            throw new Error("MONGO_URI is missing from .env");
+        if (!mongoose.connection || mongoose.connection.readyState !== 1) {
+            if (!process.env.MONGO_URI) {
+                throw new Error("MONGO_URI is missing from environment");
+            }
+
+            await mongoose.connect(process.env.MONGO_URI);
+            console.log("MongoDB connected for seeding");
         }
-
-        await mongoose.connect(process.env.MONGO_URI);
-
-        console.log("MongoDB connected");
 
         for (const train of trains) {
             await Train.findOneAndUpdate(
@@ -235,13 +236,21 @@ const seedDatabase = async () => {
         console.log("Database seeding completed");
     } catch (error) {
         console.error("Seeding failed:", error.message);
-        process.exitCode = 1;
+        throw error;
     } finally {
-        if (mongoose.connection.readyState !== 0) {
+        if (shouldCloseConnection && mongoose.connection.readyState !== 0) {
             await mongoose.connection.close();
             console.log("MongoDB connection closed");
         }
     }
 };
 
-seedDatabase();
+module.exports = seedDatabase;
+
+if (require.main === module) {
+    seedDatabase(true)
+        .then(() => process.exit(0))
+        .catch(() => {
+            process.exitCode = 1;
+        });
+}

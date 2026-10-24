@@ -17,6 +17,7 @@ const orderRoutes = require("./routes/orderRoutes");
 
 const errorMiddleware = require("./middleware/errorMiddleware");
 const { initializeSocket } = require("./sockets/socket");
+const seedDatabase = require("./seed/seedDatabase");
 
 const app = express();
 const httpServer = http.createServer(app);
@@ -71,6 +72,24 @@ app.get("/health", (req, res) => {
     });
 });
 
+app.get("/seed", async (req, res) => {
+    try {
+        await seedDatabase(false);
+        res.json({ success: true, message: "Database seeded successfully" });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+app.post("/seed", async (req, res) => {
+    try {
+        await seedDatabase(false);
+        res.json({ success: true, message: "Database seeded successfully" });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
 app.use("/auth", authRoutes);
 app.use("/trains", trainRoutes);
 app.use("/food", foodRoutes);
@@ -95,6 +114,13 @@ async function startServer() {
         await mongoose.connect(process.env.MONGO_URI);
 
         console.log("MongoDB connected successfully");
+
+        // Seed initial data (trains, food items, pantry account) if not already present
+        try {
+            await seedDatabase(false);
+        } catch (seedError) {
+            console.error("Auto-seed on startup failed:", seedError.message);
+        }
 
         httpServer.listen(PORT, "0.0.0.0", () => {
             console.log(`RailBite server running on port ${PORT}`);
