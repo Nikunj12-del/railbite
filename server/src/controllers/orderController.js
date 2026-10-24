@@ -1,9 +1,14 @@
+
 const mongoose = require("mongoose");
+const crypto = require("crypto");
+
 const Order = require("../models/Order");
 const Train = require("../models/Train");
 const FoodItem = require("../models/FoodItem");
+const razorpay = require("../config/razorpay");
 const { getIO } = require("../sockets/socket");
 
+// CREATE ORDER
 const createOrder = async (req, res) => {
     try {
         const {
@@ -14,66 +19,25 @@ const createOrder = async (req, res) => {
             specialInstructions
         } = req.body;
 
-        if (!trainId || !mongoose.isValidObjectId(trainId)) {
-            return res.status(400).json({
-                message: "Valid train ID is required"
-            });
-        }
-
-        if (!coachNumber || !String(coachNumber).trim()) {
-            return res.status(400).json({
-                message: "Coach number is required"
-            });
-        }
-
         if (
-            !Number.isInteger(Number(seatNumber)) ||
-            Number(seatNumber) < 1
+            !trainId ||
+            typeof coachNumber !== "string" ||
+            !coachNumber.trim() ||
+            seatNumber === undefined ||
+            seatNumber === null ||
+            String(seatNumber).trim() === "" ||
+            !Array.isArray(items) ||
+            items.length === 0
         ) {
             return res.status(400).json({
-                message: "Valid seat number is required"
+                message: "Train, coach, seat and food items are required"
             });
         }
 
-        if (!Array.isArray(items) || items.length === 0) {
+        if (!mongoose.isValidObjectId(trainId)) {
             return res.status(400).json({
-                message: "At least one food item is required"
+                message: "Invalid train ID"
             });
-        }
-
-        const itemIds = [];
-        const quantities = {};
-
-        for (const item of items) {
-            if (
-                !item.foodItem ||
-                !mongoose.isValidObjectId(item.foodItem)
-            ) {
-                return res.status(400).json({
-                    message: "Invalid food item ID"
-                });
-            }
-
-            if (
-                !Number.isInteger(item.quantity) ||
-                item.quantity < 1 ||
-                item.quantity > 20
-            ) {
-                return res.status(400).json({
-                    message: "Quantity must be between 1 and 20"
-                });
-            }
-
-            const id = String(item.foodItem);
-
-            if (quantities[id]) {
-                return res.status(400).json({
-                    message: "Duplicate food items are not allowed"
-                });
-            }
-
-            quantities[id] = item.quantity;
-            itemIds.push(id);
         }
 
         const train = await Train.findById(trainId);
@@ -84,29 +48,37 @@ const createOrder = async (req, res) => {
             });
         }
 
-        const coach = train.coaches.find(
-            (item) =>
-                item.coachNumber === String(coachNumber).trim()
-        );
+        const quantities = new Map();
 
-        if (!coach) {
-            return res.status(400).json({
-                message: "Coach does not belong to this train"
-            });
+        for (const item of items) {
+            if (
+                !item.foodItem ||
+                !mongoose.isValidObjectId(item.foodItem) ||
+                !Number.isInteger(Number(item.quantity)) ||
+                Number(item.quantity) < 1
+            ) {
+                return res.status(400).json({
+                    message: "Invalid food item or quantity"
+                });
+            }
+
+            const foodId = String(item.foodItem);
+
+            quantities.set(
+                foodId,
+                (quantities.get(foodId) || 0) + Number(item.quantity)
+            );
         }
 
-        if (Number(seatNumber) > coach.seats) {
-            return res.status(400).json({
-                message: "Seat number exceeds the coach seat count"
-            });
-        }
+        const foodIds = [...quantities.keys()];
 
+        // FoodItem schema uses isAvailable, not available.
         const foodItems = await FoodItem.find({
-            _id: { $in: itemIds },
+            _id: { $in: foodIds },
             isAvailable: true
         });
 
-        if (foodItems.length !== itemIds.length) {
+        if (foodItems.length !== foodIds.length) {
             return res.status(400).json({
                 message: "One or more food items are unavailable"
             });
@@ -114,97 +86,324 @@ const createOrder = async (req, res) => {
 
         const orderItems = foodItems.map((food) => ({
             foodItem: food._id,
-            quantity: quantities[String(food._id)],
+            quantity: quantities.get(String(food._id)),
             price: food.price
         }));
 
         const totalAmount = orderItems.reduce(
-            (total, item) =>
-                total + item.price * item.quantity,
+            (total, item) => total + item.price * item.quantity,
             0
         );
+
+        if (!Number.isFinite(totalAmount) || totalAmount <= 0) {
+            return res.status(400).json({
+                message: "Invalid order total"
+            });
+        }
 
         const order = await Order.create({
             user: req.user.userId,
             train: train._id,
-            coachNumber: String(coachNumber).trim(),
-            seatNumber: Number(seatNumber),
+            coachNumber: coachNumber.trim(),
+            seatNumber: String(seatNumber).trim(),
             items: orderItems,
             totalAmount,
-            specialInstructions:
-                typeof specialInstructions === "string"
-                    ? specialInstructions.trim().slice(0, 500)
-                    : "",
-            status: "PLACED"
+            specialInstructions: specialInstructions || "",
+            status: "PLACED",
+            paymentStatus: "PENDING",
+            paymentMethod: "RAZORPAY"
         });
 
         const populatedOrder = await Order.findById(order._id)
             .populate("user", "fullName email")
             .populate("train", "trainNumber trainName")
-            .populate(
-                "items.foodItem",
-                "name price category image"
-            );
-
-        getIO().to("pantry").emit("new-order", {
-            order: populatedOrder
-        });
+            .populate("items.foodItem", "name price category image");
 
         return res.status(201).json({
-            message: "Order placed successfully",
+            message: "Order created. Complete payment to confirm it.",
             order: populatedOrder
         });
     } catch (error) {
-        console.error("Create order error:", error.message);
+        console.error("Create order error:", error);
 
         return res.status(500).json({
-            message: "Failed to place order"
+            message: "Failed to create order"
         });
     }
 };
 
-const getMyOrders = async (req, res) => {
+// CREATE RAZORPAY PAYMENT ORDER
+const createPayment = async (req, res) => {
     try {
-        const orders = await Order.find({
-            user: req.user.userId
-        })
-            .populate("train", "trainNumber trainName")
-            .populate(
-                "items.foodItem",
-                "name price category image"
-            )
-            .sort({ createdAt: -1 });
+        const { id } = req.params;
 
-        return res.json({
-            count: orders.length,
-            orders
-        });
-    } catch (error) {
-        console.error("Get my orders error:", error.message);
-
-        return res.status(500).json({
-            message: "Failed to fetch your orders"
-        });
-    }
-};
-
-const getOrderById = async (req, res) => {
-    try {
-        if (!mongoose.isValidObjectId(req.params.id)) {
+        if (!mongoose.isValidObjectId(id)) {
             return res.status(400).json({
                 message: "Invalid order ID"
             });
         }
 
         const order = await Order.findOne({
-            _id: req.params.id,
+            _id: id,
+            user: req.user.userId
+        });
+
+        if (!order) {
+            return res.status(404).json({
+                message: "Order not found"
+            });
+        }
+
+        if (order.paymentStatus === "PAID") {
+            return res.status(400).json({
+                message: "Order has already been paid"
+            });
+        }
+
+        if (
+            order.status === "CANCELLED" ||
+            order.paymentStatus === "REFUNDED"
+        ) {
+            return res.status(400).json({
+                message: "This order cannot be paid"
+            });
+        }
+
+        if (order.razorpayOrderId) {
+            return res.json({
+                message: "Payment order already created",
+                orderId: order.razorpayOrderId,
+                amount: Math.round(order.totalAmount * 100),
+                currency: "INR",
+                key: process.env.RAZORPAY_KEY_ID
+            });
+        }
+
+        const paymentOrder = await razorpay.orders.create({
+            amount: Math.round(order.totalAmount * 100),
+            currency: "INR",
+            receipt: String(order._id)
+        });
+
+        order.razorpayOrderId = paymentOrder.id;
+        await order.save();
+
+        return res.status(201).json({
+            message: "Payment order created",
+            orderId: paymentOrder.id,
+            amount: paymentOrder.amount,
+            currency: paymentOrder.currency,
+            key: process.env.RAZORPAY_KEY_ID
+        });
+    } catch (error) {
+        console.error("Create payment error:", error);
+
+        return res.status(500).json({
+            message: "Failed to create payment"
+        });
+    }
+};
+
+// VERIFY RAZORPAY PAYMENT
+const verifyPayment = async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        const {
+            razorpay_order_id,
+            razorpay_payment_id,
+            razorpay_signature
+        } = req.body;
+
+        if (!mongoose.isValidObjectId(id)) {
+            return res.status(400).json({
+                message: "Invalid order ID"
+            });
+        }
+
+        if (
+            !razorpay_order_id ||
+            !razorpay_payment_id ||
+            !razorpay_signature
+        ) {
+            return res.status(400).json({
+                message: "Payment verification details are required"
+            });
+        }
+
+        const order = await Order.findOne({
+            _id: id,
+            user: req.user.userId
+        });
+
+        if (!order) {
+            return res.status(404).json({
+                message: "Order not found"
+            });
+        }
+
+        if (order.paymentStatus === "PAID") {
+            return res.json({
+                message: "Payment already verified",
+                order
+            });
+        }
+
+        if (order.status === "CANCELLED") {
+            return res.status(400).json({
+                message: "Cancelled orders cannot be paid"
+            });
+        }
+
+        if (
+            !order.razorpayOrderId ||
+            order.razorpayOrderId !== razorpay_order_id
+        ) {
+            return res.status(400).json({
+                message: "Razorpay order does not match"
+            });
+        }
+
+        const expectedSignature = crypto
+            .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
+            .update(`${razorpay_order_id}|${razorpay_payment_id}`)
+            .digest("hex");
+
+        const signatureBuffer = Buffer.from(razorpay_signature, "hex");
+        const expectedBuffer = Buffer.from(expectedSignature, "hex");
+
+        if (
+            signatureBuffer.length !== expectedBuffer.length ||
+            !crypto.timingSafeEqual(signatureBuffer, expectedBuffer)
+        ) {
+            return res.status(400).json({
+                message: "Invalid payment signature"
+            });
+        }
+
+        let payment = await razorpay.payments.fetch(razorpay_payment_id);
+
+        if (
+            payment.order_id !== razorpay_order_id ||
+            payment.amount !== Math.round(order.totalAmount * 100) ||
+            payment.currency !== "INR"
+        ) {
+            return res.status(400).json({
+                message: "Payment details do not match"
+            });
+        }
+
+        if (payment.status === "authorized") {
+            payment = await razorpay.payments.capture(
+                razorpay_payment_id,
+                Math.round(order.totalAmount * 100),
+                "INR"
+            );
+        }
+
+        if (payment.status !== "captured") {
+            return res.status(400).json({
+                message: "Payment has not been captured"
+            });
+        }
+
+        const updatedOrder = await Order.findOneAndUpdate(
+            {
+                _id: order._id,
+                user: req.user.userId,
+                paymentStatus: "PENDING",
+                status: { $ne: "CANCELLED" },
+                razorpayOrderId: razorpay_order_id
+            },
+            {
+                $set: {
+                    paymentStatus: "PAID",
+                    razorpayPaymentId: razorpay_payment_id
+                }
+            },
+            { new: true }
+        );
+
+        if (!updatedOrder) {
+            const latestOrder = await Order.findById(order._id);
+
+            if (latestOrder?.paymentStatus === "PAID") {
+                return res.json({
+                    message: "Payment already verified",
+                    order: latestOrder
+                });
+            }
+
+            return res.status(400).json({
+                message: "Order could not be confirmed. Contact support if money was deducted."
+            });
+        }
+
+        const populatedOrder = await Order.findById(updatedOrder._id)
+            .populate("user", "fullName email")
+            .populate("train", "trainNumber trainName")
+            .populate("items.foodItem", "name price category image");
+
+        const io = getIO();
+
+        io.to("pantry").emit("new-order", {
+            order: populatedOrder
+        });
+
+        io.to(`user:${req.user.userId}`).emit("order-updated", {
+            order: populatedOrder
+        });
+
+        return res.json({
+            message: "Payment verified successfully",
+            order: populatedOrder
+        });
+    } catch (error) {
+        console.error("Verify payment error:", error);
+
+        return res.status(500).json({
+            message: "Failed to verify payment"
+        });
+    }
+};
+
+// GET LOGGED-IN PASSENGER'S ORDERS
+const getMyOrders = async (req, res) => {
+    try {
+        const orders = await Order.find({
             user: req.user.userId
         })
             .populate("train", "trainNumber trainName")
-            .populate(
-                "items.foodItem",
-                "name price category image"
-            );
+            .populate("items.foodItem", "name price category image")
+            .sort({ createdAt: -1 });
+
+        return res.json({ orders });
+    } catch (error) {
+        console.error("Get my orders error:", error);
+
+        return res.status(500).json({
+            message: "Failed to fetch orders"
+        });
+    }
+};
+
+// GET A SINGLE PASSENGER ORDER
+const getOrderById = async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        if (!mongoose.isValidObjectId(id)) {
+            return res.status(400).json({
+                message: "Invalid order ID"
+            });
+        }
+
+        const order = await Order.findOne({
+            _id: id,
+            user: req.user.userId
+        })
+            .populate("train", "trainNumber trainName")
+            .populate("items.foodItem", "name price category image");
 
         if (!order) {
             return res.status(404).json({
@@ -214,7 +413,7 @@ const getOrderById = async (req, res) => {
 
         return res.json({ order });
     } catch (error) {
-        console.error("Get order error:", error.message);
+        console.error("Get order error:", error);
 
         return res.status(500).json({
             message: "Failed to fetch order"
@@ -222,16 +421,19 @@ const getOrderById = async (req, res) => {
     }
 };
 
+// CANCEL UNPAID PASSENGER ORDER
 const cancelMyOrder = async (req, res) => {
     try {
-        if (!mongoose.isValidObjectId(req.params.id)) {
+        const { id } = req.params;
+
+        if (!mongoose.isValidObjectId(id)) {
             return res.status(400).json({
                 message: "Invalid order ID"
             });
         }
 
         const order = await Order.findOne({
-            _id: req.params.id,
+            _id: id,
             user: req.user.userId
         });
 
@@ -241,10 +443,15 @@ const cancelMyOrder = async (req, res) => {
             });
         }
 
+        if (order.paymentStatus === "PAID") {
+            return res.status(400).json({
+                message: "Paid orders cannot be cancelled through this endpoint"
+            });
+        }
+
         if (order.status !== "PLACED") {
             return res.status(400).json({
-                message:
-                    "Only orders with PLACED status can be cancelled"
+                message: "This order can no longer be cancelled"
             });
         }
 
@@ -253,23 +460,18 @@ const cancelMyOrder = async (req, res) => {
 
         const populatedOrder = await Order.findById(order._id)
             .populate("train", "trainNumber trainName")
-            .populate(
-                "items.foodItem",
-                "name price category image"
-            );
+            .populate("items.foodItem", "name price category image");
 
-        getIO()
-            .to(`user:${req.user.userId}`)
-            .emit("order-updated", {
-                order: populatedOrder
-            });
+        getIO().to(`user:${req.user.userId}`).emit("order-updated", {
+            order: populatedOrder
+        });
 
         return res.json({
             message: "Order cancelled successfully",
             order: populatedOrder
         });
     } catch (error) {
-        console.error("Cancel order error:", error.message);
+        console.error("Cancel order error:", error);
 
         return res.status(500).json({
             message: "Failed to cancel order"
@@ -277,46 +479,29 @@ const cancelMyOrder = async (req, res) => {
     }
 };
 
+// GET PAID ORDERS FOR PANTRY STAFF
 const getPantryOrders = async (req, res) => {
     try {
-        const activeStatuses = [
-            "PLACED",
-            "ACCEPTED",
-            "PREPARING",
-            "READY",
-            "OUT_FOR_DELIVERY"
-        ];
-
         const orders = await Order.find({
-            status: { $in: activeStatuses }
+            paymentStatus: "PAID",
+            status: {
+                $in: [
+                    "PLACED",
+                    "ACCEPTED",
+                    "PREPARING",
+                    "READY",
+                    "OUT_FOR_DELIVERY"
+                ]
+            }
         })
             .populate("user", "fullName email")
             .populate("train", "trainNumber trainName")
-            .populate(
-                "items.foodItem",
-                "name price category image"
-            )
-            .sort({ createdAt: 1 });
+            .populate("items.foodItem", "name price category image")
+            .sort({ createdAt: -1 });
 
-        const groupedOrders = {};
-
-        for (const order of orders) {
-            const coach = order.coachNumber;
-
-            if (!groupedOrders[coach]) {
-                groupedOrders[coach] = [];
-            }
-
-            groupedOrders[coach].push(order);
-        }
-
-        return res.json({
-            count: orders.length,
-            orders,
-            groupedOrders
-        });
+        return res.json({ orders });
     } catch (error) {
-        console.error("Get pantry orders error:", error.message);
+        console.error("Get pantry orders error:", error);
 
         return res.status(500).json({
             message: "Failed to fetch pantry orders"
@@ -324,89 +509,81 @@ const getPantryOrders = async (req, res) => {
     }
 };
 
+// UPDATE ORDER STATUS BY PANTRY STAFF
 const updateOrderStatus = async (req, res) => {
     try {
+        const { id } = req.params;
         const { status } = req.body;
 
-        const previousStatuses = {
-            ACCEPTED: ["PLACED"],
-            PREPARING: ["ACCEPTED"],
-            READY: ["PREPARING"],
-            OUT_FOR_DELIVERY: ["READY"],
-            DELIVERED: ["OUT_FOR_DELIVERY"],
-            CANCELLED: ["PLACED", "ACCEPTED", "PREPARING"]
-        };
+        const allowedStatuses = [
+            "ACCEPTED",
+            "PREPARING",
+            "READY",
+            "OUT_FOR_DELIVERY",
+            "DELIVERED"
+        ];
 
-        if (!status || !previousStatuses[status]) {
-            return res.status(400).json({
-                message: "Invalid order status"
-            });
-        }
-
-        if (!mongoose.isValidObjectId(req.params.id)) {
+        if (!mongoose.isValidObjectId(id)) {
             return res.status(400).json({
                 message: "Invalid order ID"
             });
         }
 
-        const updatedOrder = await Order.findOneAndUpdate(
-            {
-                _id: req.params.id,
-                status: {
-                    $in: previousStatuses[status]
-                }
-            },
-            {
-                $set: { status }
-            },
-            {
-                new: true,
-                runValidators: true
-            }
-        )
-            .populate("user", "fullName email")
-            .populate("train", "trainNumber trainName")
-            .populate(
-                "items.foodItem",
-                "name price category image"
-            );
-
-        if (!updatedOrder) {
-            const existingOrder = await Order.findById(
-                req.params.id
-            );
-
-            if (!existingOrder) {
-                return res.status(404).json({
-                    message: "Order not found"
-                });
-            }
-
+        if (!allowedStatuses.includes(status)) {
             return res.status(400).json({
-                message:
-                    `Cannot change order from ${existingOrder.status} to ${status}`
+                message: "Invalid order status"
             });
         }
 
+        const order = await Order.findOne({
+            _id: id,
+            paymentStatus: "PAID"
+        });
+
+        if (!order) {
+            return res.status(404).json({
+                message: "Paid order not found"
+            });
+        }
+
+        const validTransitions = {
+            PLACED: ["ACCEPTED"],
+            ACCEPTED: ["PREPARING"],
+            PREPARING: ["READY"],
+            READY: ["OUT_FOR_DELIVERY"],
+            OUT_FOR_DELIVERY: ["DELIVERED"]
+        };
+
+        if (!(validTransitions[order.status] || []).includes(status)) {
+            return res.status(400).json({
+                message: `Cannot change status from ${order.status} to ${status}`
+            });
+        }
+
+        order.status = status;
+        await order.save();
+
+        const populatedOrder = await Order.findById(order._id)
+            .populate("user", "fullName email")
+            .populate("train", "trainNumber trainName")
+            .populate("items.foodItem", "name price category image");
+
         const io = getIO();
 
-        io.to(`user:${updatedOrder.user._id}`).emit(
-            "order-updated",
-            {
-                order: updatedOrder
-            }
-        );
+        io.to(`user:${order.user}`).emit("order-updated", {
+            order: populatedOrder
+        });
 
-        io.to("pantry").emit("order-updated", {
-            order: updatedOrder
+        io.to("pantry").emit("order-status-updated", {
+            order: populatedOrder
         });
 
         return res.json({
             message: "Order status updated successfully",
-            order: updatedOrder
+            order: populatedOrder
         });
     } catch (error) {
-        console.error("Update order status error:", error.message);
+        console.error("Update order status error:", error);
 
         return res.status(500).json({
             message: "Failed to update order status"
@@ -416,6 +593,8 @@ const updateOrderStatus = async (req, res) => {
 
 module.exports = {
     createOrder,
+    createPayment,
+    verifyPayment,
     getMyOrders,
     getOrderById,
     cancelMyOrder,

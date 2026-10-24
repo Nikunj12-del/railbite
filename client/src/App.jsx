@@ -1,122 +1,140 @@
-import { useState } from 'react'
-import heroImg from './assets/hero.png'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import './App.css'
+import { useEffect, useState } from "react";
+import {
+  BrowserRouter,
+  Routes,
+  Route,
+  Navigate,
+} from "react-router-dom";
 
-function App() {
-  const [count, setCount] = useState(0)
+import Login from "./pages/Login";
+import Register from "./pages/Register";
+import Dashboard from "./pages/Dashboard";
+import PantryDashboard from "./pages/PantryDashboard";
+import Menu from "./pages/FoodMenu";
+import Cart from "./pages/Cart";
+import Checkout from "./pages/Checkout";
+import Orders from "./pages/MyOrders";
+
+import DashboardLayout from "./layouts/DashboardLayout";
+import { CartProvider } from "./context/CartContext";
+import { SocketProvider } from "./hooks/useSocket";
+import api from "./services/api";
+
+function AppContent() {
+  const [user, setUser] = useState(null);
+  const [checkingAuth, setCheckingAuth] = useState(true);
+  const [showRegister, setShowRegister] = useState(false);
+  const [registeredEmail, setRegisteredEmail] = useState("");
+
+  useEffect(() => {
+    let mounted = true;
+
+    const checkAuth = async () => {
+      try {
+        const response = await api.get("/auth/me");
+        const loggedInUser = response.data.user || response.data;
+
+        if (mounted && loggedInUser?.role) {
+          setUser(loggedInUser);
+        }
+      } catch (error) {
+        if (mounted) {
+          setUser(null);
+        }
+      } finally {
+        if (mounted) {
+          setCheckingAuth(false);
+        }
+      }
+    };
+
+    checkAuth();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  if (checkingAuth) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-50">
+        <div className="h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-indigo-600" />
+      </div>
+    );
+  }
+
+  if (!user) {
+    if (showRegister) {
+      return (
+        <Register
+          onRegister={() => {
+            setShowRegister(false);
+          }}
+          onLoginClick={() => setShowRegister(false)}
+          onRegistrationSuccess={(email) => {
+            setRegisteredEmail(email || "");
+            setShowRegister(false);
+          }}
+        />
+      );
+    }
+
+    return (
+      <Login
+        onLogin={setUser}
+        onRegisterClick={() => setShowRegister(true)}
+        initialEmail={registeredEmail}
+      />
+    );
+  }
 
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.jsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
+    <Routes>
+      <Route
+        element={
+          <DashboardLayout
+            user={user}
+            onLogout={() => setUser(null)}
+            onLogin={setUser}
+          />
+        }
+      >
+        <Route
+          index
+          element={
+            user?.role === "pantry_staff" ? (
+              <PantryDashboard />
+            ) : (
+              <Dashboard />
+            )
+          }
+        />
 
-      <div className="ticks"></div>
+        {user?.role === "passenger" ? (
+          <>
+            <Route path="menu" element={<Menu />} />
+            <Route path="cart" element={<Cart />} />
+            <Route path="checkout" element={<Checkout />} />
+            <Route path="orders" element={<Orders />} />
+          </>
+        ) : null}
 
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
-
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
-  )
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Route>
+    </Routes>
+  );
 }
 
-export default App
+function App() {
+  return (
+    <BrowserRouter>
+      <SocketProvider>
+        <CartProvider>
+          <AppContent />
+        </CartProvider>
+      </SocketProvider>
+    </BrowserRouter>
+  );
+}
+
+export default App;

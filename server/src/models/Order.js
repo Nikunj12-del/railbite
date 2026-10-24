@@ -52,6 +52,33 @@ const orderSchema = new mongoose.Schema(
             min: 0
         },
 
+        // Razorpay payment details
+        paymentStatus: {
+            type: String,
+            enum: [
+                "PENDING",
+                "PAID",
+                "FAILED",
+                "REFUNDED"
+            ],
+            default: "PENDING"
+        },
+
+        paymentMethod: {
+            type: String,
+            default: "RAZORPAY"
+        },
+
+        razorpayOrderId: {
+            type: String,
+            default: null
+        },
+
+        razorpayPaymentId: {
+            type: String,
+            default: null
+        },
+
         status: {
             type: String,
             enum: [

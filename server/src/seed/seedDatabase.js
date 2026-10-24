@@ -38,6 +38,47 @@ const trains = [
             { coachNumber: "C1", seats: 78 },
             { coachNumber: "C2", seats: 78 }
         ]
+    },
+    {
+        trainNumber: "12007",
+        trainName: "Chennai Mysuru Shatabdi",
+        coaches: [
+            { coachNumber: "C1", seats: 78 },
+            { coachNumber: "C2", seats: 78 }
+        ]
+    },
+    {
+        trainNumber: "12009",
+        trainName: "Mumbai Ahmedabad Shatabdi",
+        coaches: [
+            { coachNumber: "C1", seats: 78 },
+            { coachNumber: "C2", seats: 78 }
+        ]
+    },
+    {
+        trainNumber: "12005",
+        trainName: "Kalka Shatabdi",
+        coaches: [
+            { coachNumber: "C1", seats: 78 },
+            { coachNumber: "C2", seats: 78 }
+        ]
+    },
+    {
+        trainNumber: "22691",
+        trainName: "Bengaluru Rajdhani",
+        coaches: [
+            { coachNumber: "A1", seats: 24 },
+            { coachNumber: "B1", seats: 48 },
+            { coachNumber: "B2", seats: 48 }
+        ]
+    },
+    {
+        trainNumber: "12027",
+        trainName: "Bengaluru Chennai Shatabdi",
+        coaches: [
+            { coachNumber: "C1", seats: 78 },
+            { coachNumber: "C2", seats: 78 }
+        ]
     }
 ];
 
@@ -47,7 +88,7 @@ const foodItems = [
         description: "Fresh vegetable sandwich",
         price: 80,
         category: "Breakfast",
-        image: "",
+        image: "https://images.unsplash.com/photo-1528735602780-2552fd46c7af?w=600",
         isAvailable: true,
         preparationTime: 10
     },
@@ -56,7 +97,7 @@ const foodItems = [
         description: "Crispy dosa served with chutney",
         price: 120,
         category: "Breakfast",
-        image: "",
+        image: "https://images.unsplash.com/photo-1668236543090-82eba5ee5976?w=600",
         isAvailable: true,
         preparationTime: 15
     },
@@ -65,7 +106,7 @@ const foodItems = [
         description: "Complete vegetarian meal",
         price: 180,
         category: "Meals",
-        image: "",
+        image: "https://images.unsplash.com/photo-1546833999-b9f581a1996d?w=600",
         isAvailable: true,
         preparationTime: 20
     },
@@ -74,7 +115,7 @@ const foodItems = [
         description: "Rice served with paneer curry",
         price: 160,
         category: "Meals",
-        image: "",
+        image: "https://images.unsplash.com/photo-1512058564366-18510be2db19?w=600",
         isAvailable: true,
         preparationTime: 20
     },
@@ -83,7 +124,7 @@ const foodItems = [
         description: "Crispy potato-filled snack",
         price: 40,
         category: "Snacks",
-        image: "",
+        image: "https://images.unsplash.com/photo-1601050690597-df0568f70950?w=600",
         isAvailable: true,
         preparationTime: 8
     },
@@ -92,7 +133,7 @@ const foodItems = [
         description: "Crispy vegetable cutlet",
         price: 60,
         category: "Snacks",
-        image: "",
+        image: "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=600",
         isAvailable: true,
         preparationTime: 10
     },
@@ -101,7 +142,7 @@ const foodItems = [
         description: "Hot Indian masala tea",
         price: 30,
         category: "Beverages",
-        image: "",
+        image: "https://images.unsplash.com/photo-1571934811356-5cc061b6821f?w=600",
         isAvailable: true,
         preparationTime: 5
     },
@@ -110,7 +151,7 @@ const foodItems = [
         description: "Chilled creamy coffee",
         price: 90,
         category: "Beverages",
-        image: "",
+        image: "https://images.unsplash.com/photo-1461023058943-07fcbe16d735?w=600",
         isAvailable: true,
         preparationTime: 7
     },
@@ -119,7 +160,7 @@ const foodItems = [
         description: "Soft sweet dumplings in sugar syrup",
         price: 60,
         category: "Desserts",
-        image: "",
+        image: "https://images.unsplash.com/photo-1666190092159-3a4b4b8b1a9a?w=600",
         isAvailable: true,
         preparationTime: 5
     }
@@ -127,79 +168,79 @@ const foodItems = [
 
 const seedDatabase = async () => {
     try {
+        if (!process.env.MONGO_URI) {
+            throw new Error("MONGO_URI is missing from .env");
+        }
+
         await mongoose.connect(process.env.MONGO_URI);
 
         console.log("MongoDB connected");
 
-        // Seed trains without deleting existing documents
         for (const train of trains) {
             await Train.findOneAndUpdate(
-                {
-                    trainNumber: train.trainNumber
-                },
-                train,
+                { trainNumber: train.trainNumber },
+                { $set: train },
                 {
                     upsert: true,
                     new: true,
-                    setDefaultsOnInsert: true
+                    setDefaultsOnInsert: true,
+                    runValidators: true
                 }
             );
+
+            console.log(`Train ready: ${train.trainName}`);
         }
 
-        // Seed food items without deleting existing documents
         for (const food of foodItems) {
             await FoodItem.findOneAndUpdate(
-                {
-                    name: food.name
-                },
-                food,
+                { name: food.name },
+                { $set: food },
                 {
                     upsert: true,
                     new: true,
-                    setDefaultsOnInsert: true
+                    setDefaultsOnInsert: true,
+                    runValidators: true
                 }
             );
+
+            console.log(`Food item ready: ${food.name}`);
         }
 
-        // Create/update pantry staff account
         const hashedPassword = await bcrypt.hash(
             "pantry123",
             10
         );
 
         await User.findOneAndUpdate(
+            { email: "pantry@railbite.com" },
             {
-                email: "pantry@railbite.com"
-            },
-            {
-                fullName: "RailBite Pantry Staff",
-                email: "pantry@railbite.com",
-                password: hashedPassword,
-                role: "pantry_staff"
+                $set: {
+                    fullName: "RailBite Pantry Staff",
+                    email: "pantry@railbite.com",
+                    password: hashedPassword,
+                    role: "pantry_staff"
+                }
             },
             {
                 upsert: true,
                 new: true,
-                setDefaultsOnInsert: true
+                setDefaultsOnInsert: true,
+                runValidators: true
             }
         );
 
-        console.log("Trains seeded successfully");
+        console.log("\nTrains seeded successfully");
         console.log("Food items seeded successfully");
         console.log("Pantry staff account ready");
         console.log("Database seeding completed");
-
-        await mongoose.connection.close();
-
-        console.log("MongoDB connection closed");
     } catch (error) {
         console.error("Seeding failed:", error.message);
-
+        process.exitCode = 1;
+    } finally {
         if (mongoose.connection.readyState !== 0) {
             await mongoose.connection.close();
+            console.log("MongoDB connection closed");
         }
-
-        process.exit(1);
     }
 };
 
