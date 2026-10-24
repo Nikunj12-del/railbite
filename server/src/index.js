@@ -21,9 +21,22 @@ const { initializeSocket } = require("./sockets/socket");
 const app = express();
 const httpServer = http.createServer(app);
 
+const PORT = process.env.PORT || 8085;
+
+const allowedOrigins = [
+    "http://localhost:5173",
+    process.env.FRONTEND_URL
+].filter(Boolean);
+
 app.use(
     cors({
-        origin: "http://localhost:5173",
+        origin: function (origin, callback) {
+            if (!origin || allowedOrigins.includes(origin)) {
+                return callback(null, true);
+            }
+
+            return callback(new Error("Not allowed by CORS"));
+        },
         credentials: true
     })
 );
@@ -47,34 +60,33 @@ app.use("/trains", trainRoutes);
 app.use("/food", foodRoutes);
 app.use("/orders", orderRoutes);
 
-// Error middleware must come after routes.
 app.use(errorMiddleware);
 
-// Initialize Socket.IO.
 initializeSocket(httpServer);
 
-const PORT = process.env.PORT || 8085;
+async function startServer() {
+    if (!process.env.MONGO_URI) {
+        console.error("MONGO_URI is missing from the environment");
+        process.exit(1);
+    }
 
-if (!process.env.MONGO_URI) {
-    console.error("MONGO_URI is missing from the environment");
-    process.exit(1);
-}
+    if (!process.env.JWT_SECRET) {
+        console.error("JWT_SECRET is missing from the environment");
+        process.exit(1);
+    }
 
-if (!process.env.JWT_SECRET) {
-    console.error("JWT_SECRET is missing from the environment");
-    process.exit(1);
-}
+    try {
+        await mongoose.connect(process.env.MONGO_URI);
 
-mongoose
-    .connect(process.env.MONGO_URI)
-    .then(() => {
         console.log("MongoDB connected successfully");
 
-        httpServer.listen(PORT, () => {
+        httpServer.listen(PORT, "0.0.0.0", () => {
             console.log(`RailBite server running on port ${PORT}`);
         });
-    })
-    .catch((error) => {
+    } catch (error) {
         console.error("MongoDB connection failed:", error.message);
         process.exit(1);
-    });
+    }
+}
+
+startServer();
