@@ -48,7 +48,14 @@ const allowedOrigins = Array.from(
 function isOriginAllowed(origin) {
     if (!origin) return true;
     const normalized = origin.trim().replace(/\/+$/, "");
-    return allowedOrigins.includes(normalized) || allowedOrigins.includes(origin);
+    if (allowedOrigins.includes(normalized) || allowedOrigins.includes(origin)) {
+        return true;
+    }
+    // Allow RailBite preview, branch, and production deployments on Vercel
+    if (/^https:\/\/railbite[a-z0-9-]*\.vercel\.app$/i.test(normalized)) {
+        return true;
+    }
+    return false;
 }
 
 const initializeSocket = (httpServer) => {
