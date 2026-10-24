@@ -72,6 +72,7 @@ function AppContent() {
               setRegisteredEmail(email || "");
               setShowRegister(false);
             }}
+            onLogin={setUser}
           />
         ) : (
           <Login

@@ -1,14 +1,17 @@
 import { useState } from "react";
 import api from "../services/api";
+import { useSocket } from "../hooks/useSocket";
 
 function Register({
     onBackToLogin,
     onLoginClick,
     onRegistered,
-    onRegistrationSuccess
+    onRegistrationSuccess,
+    onLogin
 }) {
     const handleBack = onBackToLogin || onLoginClick;
     const handleSuccess = onRegistered || onRegistrationSuccess;
+    const { reconnectSocket } = useSocket();
 
     const [fullName, setFullName] = useState("");
     const [email, setEmail] = useState("");
@@ -45,6 +48,12 @@ function Register({
             setSuccess(
                 response.data.message || "Registration successful!"
             );
+
+            if (onLogin && response.data.user) {
+                reconnectSocket();
+                onLogin(response.data.user);
+                return;
+            }
 
             if (handleSuccess) {
                 handleSuccess(email.trim().toLowerCase());
