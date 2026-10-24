@@ -1,7 +1,15 @@
 import { useState } from "react";
 import api from "../services/api";
 
-function Register({ onBackToLogin, onRegistered }) {
+function Register({
+    onBackToLogin,
+    onLoginClick,
+    onRegistered,
+    onRegistrationSuccess
+}) {
+    const handleBack = onBackToLogin || onLoginClick;
+    const handleSuccess = onRegistered || onRegistrationSuccess;
+
     const [fullName, setFullName] = useState("");
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
@@ -38,8 +46,8 @@ function Register({ onBackToLogin, onRegistered }) {
                 response.data.message || "Registration successful!"
             );
 
-            if (onRegistered) {
-                onRegistered(email.trim().toLowerCase());
+            if (handleSuccess) {
+                handleSuccess(email.trim().toLowerCase());
             }
         } catch (err) {
             setError(
@@ -181,7 +189,7 @@ function Register({ onBackToLogin, onRegistered }) {
                         Already have an account?{" "}
                         <button
                             type="button"
-                            onClick={onBackToLogin}
+                            onClick={handleBack}
                             className="font-bold text-blue-700 hover:text-blue-900"
                         >
                             Sign in

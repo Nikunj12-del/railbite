@@ -37,7 +37,7 @@ function AppContent() {
         if (mounted && loggedInUser?.role) {
           setUser(loggedInUser);
         }
-      } catch (error) {
+      } catch {
         if (mounted) {
           setUser(null);
         }
@@ -55,84 +55,76 @@ function AppContent() {
     };
   }, []);
 
-  if (checkingAuth) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50">
-        <div className="h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-indigo-600" />
-      </div>
-    );
-  }
-
-  if (!user) {
-    if (showRegister) {
-      return (
-        <Register
-          onRegister={() => {
-            setShowRegister(false);
-          }}
-          onLoginClick={() => setShowRegister(false)}
-          onRegistrationSuccess={(email) => {
-            setRegisteredEmail(email || "");
-            setShowRegister(false);
-          }}
-        />
-      );
-    }
-
-    return (
-      <Login
-        onLogin={setUser}
-        onRegisterClick={() => setShowRegister(true)}
-        initialEmail={registeredEmail}
-      />
-    );
-  }
-
   return (
-    <Routes>
-      <Route
-        element={
-          <DashboardLayout
-            user={user}
-            onLogout={() => setUser(null)}
-            onLogin={setUser}
+    <SocketProvider user={user}>
+      {checkingAuth ? (
+        <div className="flex min-h-screen items-center justify-center bg-slate-50">
+          <div className="h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-indigo-600" />
+        </div>
+      ) : !user ? (
+        showRegister ? (
+          <Register
+            onRegister={() => {
+              setShowRegister(false);
+            }}
+            onLoginClick={() => setShowRegister(false)}
+            onRegistrationSuccess={(email) => {
+              setRegisteredEmail(email || "");
+              setShowRegister(false);
+            }}
           />
-        }
-      >
-        <Route
-          index
-          element={
-            user?.role === "pantry_staff" ? (
-              <PantryDashboard />
-            ) : (
-              <Dashboard />
-            )
-          }
-        />
+        ) : (
+          <Login
+            onLogin={setUser}
+            onRegisterClick={() => setShowRegister(true)}
+            initialEmail={registeredEmail}
+          />
+        )
+      ) : (
+        <Routes>
+          <Route
+            element={
+              <DashboardLayout
+                user={user}
+                onLogout={() => setUser(null)}
+                onLogin={setUser}
+              />
+            }
+          >
+            <Route
+              index
+              element={
+                user?.role === "pantry_staff" ? (
+                  <PantryDashboard />
+                ) : (
+                  <Dashboard />
+                )
+              }
+            />
 
-        {user?.role === "passenger" ? (
-          <>
-            <Route path="menu" element={<Menu />} />
-            <Route path="cart" element={<Cart />} />
-            <Route path="checkout" element={<Checkout />} />
-            <Route path="orders" element={<Orders />} />
-          </>
-        ) : null}
+            {user?.role === "passenger" ? (
+              <>
+                <Route path="menu" element={<Menu />} />
+                <Route path="cart" element={<Cart />} />
+                <Route path="checkout" element={<Checkout />} />
+                <Route path="orders" element={<Orders />} />
+              </>
+            ) : null}
 
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Route>
-    </Routes>
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Route>
+        </Routes>
+      )}
+    </SocketProvider>
   );
 }
 
 function App() {
   return (
     <BrowserRouter>
-      <SocketProvider>
-        <CartProvider>
-          <AppContent />
-        </CartProvider>
-      </SocketProvider>
+      <CartProvider>
+        <AppContent />
+      </CartProvider>
     </BrowserRouter>
   );
 }

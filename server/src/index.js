@@ -23,21 +23,37 @@ const httpServer = http.createServer(app);
 
 const PORT = process.env.PORT || 8085;
 
-const allowedOrigins = [
-    "http://localhost:5173",
-    process.env.FRONTEND_URL
-].filter(Boolean);
+const DEFAULT_FRONTEND_URL = "https://railbite-puce.vercel.app";
+const configuredFrontendUrl = process.env.FRONTEND_URL
+    ? process.env.FRONTEND_URL.trim().replace(/\/+$/, "")
+    : null;
+
+const allowedOrigins = Array.from(
+    new Set([
+        "http://localhost:5173",
+        DEFAULT_FRONTEND_URL,
+        ...(configuredFrontendUrl ? [configuredFrontendUrl] : [])
+    ])
+);
+
+function isOriginAllowed(origin) {
+    if (!origin) return true;
+    const normalized = origin.trim().replace(/\/+$/, "");
+    return allowedOrigins.includes(normalized) || allowedOrigins.includes(origin);
+}
 
 app.use(
     cors({
         origin: function (origin, callback) {
-            if (!origin || allowedOrigins.includes(origin)) {
+            if (isOriginAllowed(origin)) {
                 return callback(null, true);
             }
 
-            return callback(new Error("Not allowed by CORS"));
+            return callback(new Error(`CORS error: origin ${origin} not allowed`));
         },
-        credentials: true
+        credentials: true,
+        methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+        allowedHeaders: ["Content-Type", "Authorization", "Cookie"]
     })
 );
 

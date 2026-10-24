@@ -7,31 +7,34 @@ import React, {
 } from "react";
 
 import { io } from "socket.io-client";
-
-const SOCKET_URL =
-    import.meta.env.VITE_API_URL || "http://localhost:8085";
+import { API_URL } from "../services/api";
 
 const SocketContext = createContext({
     socket: null,
-    connected: false
+    connected: false,
+    connectSocket: () => {},
+    disconnectSocket: () => {},
+    reconnectSocket: () => {}
 });
 
-export function SocketProvider({ children }) {
-    const [socket, setSocket] = useState(null);
-    const [connected, setConnected] = useState(false);
-
-    useEffect(() => {
-        const socketInstance = io(SOCKET_URL, {
+export function SocketProvider({ children, user = null }) {
+    const [socket] = useState(() =>
+        io(API_URL, {
             withCredentials: true,
             autoConnect: false,
             transports: ["websocket", "polling"]
-        });
+        })
+    );
+    const [connected, setConnected] = useState(false);
+
+    useEffect(() => {
+        if (!socket) return;
 
         const handleConnect = () => {
             setConnected(true);
             console.log(
                 "RailBite socket connected:",
-                socketInstance.id
+                socket.id
             );
         };
 
@@ -51,22 +54,52 @@ export function SocketProvider({ children }) {
             );
         };
 
-        socketInstance.on("connect", handleConnect);
-        socketInstance.on("disconnect", handleDisconnect);
-        socketInstance.on("connect_error", handleConnectError);
-
-        setSocket(socketInstance);
-
-        // Connect only after the socket is initialized.
-        socketInstance.connect();
+        socket.on("connect", handleConnect);
+        socket.on("disconnect", handleDisconnect);
+        socket.on("connect_error", handleConnectError);
 
         return () => {
-            socketInstance.off("connect", handleConnect);
-            socketInstance.off("disconnect", handleDisconnect);
-            socketInstance.off("connect_error", handleConnectError);
-            socketInstance.disconnect();
+            socket.off("connect", handleConnect);
+            socket.off("disconnect", handleDisconnect);
+            socket.off("connect_error", handleConnectError);
+            socket.disconnect();
         };
-    }, []);
+    }, [socket]);
+
+    // Connect only after session is verified/logged in; disconnect on logout
+    useEffect(() => {
+        if (!socket) return;
+
+        if (user) {
+            if (!socket.connected) {
+                socket.connect();
+            }
+        } else {
+            if (socket.connected) {
+                socket.disconnect();
+            }
+        }
+    }, [socket, user]);
+
+    const connectSocket = () => {
+        if (socket && !socket.connected) {
+            socket.connect();
+        }
+    };
+
+    const disconnectSocket = () => {
+        if (socket?.connected) {
+            socket.disconnect();
+        }
+        setConnected(false);
+    };
+
+    const reconnectSocket = () => {
+        if (socket) {
+            socket.disconnect();
+            socket.connect();
+        }
+    };
 
     return React.createElement(
         SocketContext.Provider,
@@ -74,12 +107,9 @@ export function SocketProvider({ children }) {
             value: {
                 socket,
                 connected,
-                reconnectSocket: () => {
-                    if (socket) {
-                        socket.disconnect();
-                        socket.connect();
-                    }
-                }
+                connectSocket,
+                disconnectSocket,
+                reconnectSocket
             }
         },
         children

@@ -4,8 +4,11 @@ const jwt = require("jsonwebtoken");
 
 let io;
 
-function parseCookies(cookieHeader) {
+function parseCookies(cookieHeader = "") {
     const cookies = {};
+    if (!cookieHeader || typeof cookieHeader !== "string") {
+        return cookies;
+    }
 
     cookieHeader.split(";").forEach((cookieString) => {
         const separatorIndex = cookieString.indexOf("=");
@@ -18,18 +21,47 @@ function parseCookies(cookieHeader) {
         const value = cookieString.slice(separatorIndex + 1).trim();
 
         if (name) {
-            cookies[name] = decodeURIComponent(value);
+            try {
+                cookies[name] = decodeURIComponent(value);
+            } catch {
+                cookies[name] = value;
+            }
         }
     });
 
     return cookies;
 }
 
+const DEFAULT_FRONTEND_URL = "https://railbite-puce.vercel.app";
+const configuredFrontendUrl = process.env.FRONTEND_URL
+    ? process.env.FRONTEND_URL.trim().replace(/\/+$/, "")
+    : null;
+
+const allowedOrigins = Array.from(
+    new Set([
+        "http://localhost:5173",
+        DEFAULT_FRONTEND_URL,
+        ...(configuredFrontendUrl ? [configuredFrontendUrl] : [])
+    ])
+);
+
+function isOriginAllowed(origin) {
+    if (!origin) return true;
+    const normalized = origin.trim().replace(/\/+$/, "");
+    return allowedOrigins.includes(normalized) || allowedOrigins.includes(origin);
+}
+
 const initializeSocket = (httpServer) => {
     io = new Server(httpServer, {
         cors: {
-            origin: "http://localhost:5173",
-            credentials: true
+            origin: function (origin, callback) {
+                if (isOriginAllowed(origin)) {
+                    return callback(null, true);
+                }
+                return callback(new Error(`Socket CORS origin not allowed: ${origin}`), false);
+            },
+            credentials: true,
+            methods: ["GET", "POST"]
         }
     });
 
