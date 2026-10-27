@@ -57,8 +57,8 @@ function Navbar({
   const openPantryLogin = () => {
     setMenuOpen(false);
     setError("");
-    setEmail("");
-    setPassword("");
+    setEmail("pantry@railbite.com");
+    setPassword("pantry123");
     setShowPantryLogin(true);
   };
 
@@ -72,7 +72,7 @@ function Navbar({
 
     try {
       const response = await api.post("/auth/login", {
-        email: email.trim(),
+        email: email.trim().toLowerCase(),
         password,
       });
 
@@ -85,7 +85,9 @@ function Navbar({
           console.error("Could not clear login cookie:", logoutError);
         }
 
-        setError("Access denied. Please use a pantry staff account.");
+        setError(
+          "Access denied: This account has the 'passenger' role. The Pantry Dashboard is reserved for pantry staff. Please use the pantry credentials (pantry@railbite.com / pantry123)."
+        );
         return;
       }
 
@@ -300,6 +302,30 @@ function Navbar({
               >
                 ✕
               </button>
+            </div>
+
+            <div className="mb-4 rounded-2xl border border-indigo-100 bg-indigo-50/70 p-3.5 dark:border-indigo-900/40 dark:bg-indigo-950/40">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-bold text-indigo-950 dark:text-indigo-200">
+                    Seeded Pantry Staff Account
+                  </p>
+                  <p className="mt-0.5 text-xs text-indigo-700 dark:text-indigo-300">
+                    pantry@railbite.com &bull; pantry123
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEmail("pantry@railbite.com");
+                    setPassword("pantry123");
+                    setError("");
+                  }}
+                  className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-bold text-white shadow-sm transition hover:bg-indigo-700"
+                >
+                  Auto-Fill
+                </button>
+              </div>
             </div>
 
             <form onSubmit={handlePantryLogin} className="space-y-4">

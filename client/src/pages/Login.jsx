@@ -34,6 +34,13 @@ function Login({
         setIsResetting(false);
     };
 
+    const handleFillPantry = () => {
+        setEmail("pantry@railbite.com");
+        setPassword("pantry123");
+        setError("");
+        setIsResetting(false);
+    };
+
     const handleSubmit = async (event) => {
         event.preventDefault();
 
@@ -139,13 +146,22 @@ function Login({
                             {isResetting ? "Reset Password" : "Welcome aboard!"}
                         </h2>
                         {!isResetting && (
-                            <button
-                                type="button"
-                                onClick={handleFillDemo}
-                                className="rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-100"
-                            >
-                                Fill Demo Passenger
-                            </button>
+                            <div className="flex flex-wrap gap-1.5">
+                                <button
+                                    type="button"
+                                    onClick={handleFillDemo}
+                                    className="rounded-lg border border-blue-200 bg-blue-50 px-2 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-100"
+                                >
+                                    Passenger Demo
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={handleFillPantry}
+                                    className="rounded-lg border border-indigo-200 bg-indigo-50 px-2 py-1 text-xs font-semibold text-indigo-700 hover:bg-indigo-100"
+                                >
+                                    Pantry Demo
+                                </button>
+                            </div>
                         )}
                     </div>
 
