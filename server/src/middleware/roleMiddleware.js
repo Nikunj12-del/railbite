@@ -1,11 +1,10 @@
-const roleMiddleware = (requiredRole) => {
-    return (req, res, next) => {
-        console.log("ROLE CHECK:", {
-            actual: req.user?.role,
-            required: requiredRole
-        });
+const roleMiddleware = (requiredRoles) => {
+    const allowedRoles = Array.isArray(requiredRoles)
+        ? requiredRoles
+        : [requiredRoles];
 
-        if (req.user.role !== requiredRole) {
+    return (req, res, next) => {
+        if (!req.user || !allowedRoles.includes(req.user.role)) {
             return res.status(403).json({
                 message: "Access denied"
             });

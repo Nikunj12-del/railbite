@@ -30,6 +30,12 @@ function Sidebar({ user, onNavigate }) {
                   path: "/orders",
                   icon: "📦",
                   description: "Track your orders"
+              },
+              {
+                  label: "Pantry Workspace",
+                  path: "/pantry",
+                  icon: "📋",
+                  description: "Manage orders (Live Test)"
               }
           ];
 

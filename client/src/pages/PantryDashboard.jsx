@@ -158,10 +158,12 @@ function PantryDashboard() {
 
         socket.on("new-order", handleNewOrder);
         socket.on("order-updated", handleOrderUpdate);
+        socket.on("order-status-updated", handleOrderUpdate);
 
         return () => {
             socket.off("new-order", handleNewOrder);
             socket.off("order-updated", handleOrderUpdate);
+            socket.off("order-status-updated", handleOrderUpdate);
         };
     }, [socket, fetchOrders]);
 

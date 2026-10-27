@@ -103,6 +103,8 @@ function AppContent() {
               }
             />
 
+            <Route path="pantry" element={<PantryDashboard />} />
+
             {user?.role === "passenger" ? (
               <>
                 <Route path="menu" element={<Menu />} />

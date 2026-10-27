@@ -235,13 +235,25 @@ function Navbar({
                   </div>
 
                   {user?.role === "passenger" && (
-                    <button
-                      type="button"
-                      onClick={openPantryLogin}
-                      className="w-full px-4 py-3 text-left text-sm font-medium text-slate-700 transition hover:bg-indigo-50 hover:text-indigo-700 dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-indigo-300"
-                    >
-                      Pantry Staff Login
-                    </button>
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMenuOpen(false);
+                          navigate("/pantry");
+                        }}
+                        className="w-full px-4 py-3 text-left text-sm font-medium text-slate-700 transition hover:bg-indigo-50 hover:text-indigo-700 dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-indigo-300"
+                      >
+                        Pantry Dashboard (Live Test)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={openPantryLogin}
+                        className="w-full px-4 py-3 text-left text-sm font-medium text-slate-700 transition hover:bg-indigo-50 hover:text-indigo-700 dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-indigo-300"
+                      >
+                        Pantry Staff Login (Switch Account)
+                      </button>
+                    </>
                   )}
 
                   {user?.role === "pantry_staff" && (

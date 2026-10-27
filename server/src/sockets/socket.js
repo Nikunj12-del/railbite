@@ -112,12 +112,9 @@ const initializeSocket = (httpServer) => {
         const userId = socket.user.userId;
 
         socket.join(`user:${userId}`);
+        socket.join("pantry");
 
-        if (socket.user.role === "pantry_staff") {
-            socket.join("pantry");
-        }
-
-        console.log(`Socket connected successfully: ${userId}`);
+        console.log(`Socket connected successfully: ${userId} (role: ${socket.user.role})`);
 
         socket.on("disconnect", (reason) => {
             console.log(`Socket disconnected: ${userId}. Reason: ${reason}`);
