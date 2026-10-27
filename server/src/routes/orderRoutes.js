@@ -17,18 +17,18 @@ const roleMiddleware = require("../middleware/roleMiddleware");
 
 const router = express.Router();
 
-// Pantry staff routes — allow pantry_staff and passenger (for live testing)
+// Pantry staff routes — specific routes FIRST
 router.get(
     "/pantry",
     authMiddleware,
-    roleMiddleware(["pantry_staff", "passenger"]),
+    roleMiddleware("pantry_staff"),
     getPantryOrders
 );
 
 router.patch(
     "/:id/status",
     authMiddleware,
-    roleMiddleware(["pantry_staff", "passenger"]),
+    roleMiddleware("pantry_staff"),
     updateOrderStatus
 );
 
@@ -43,7 +43,6 @@ router.post(
 router.get(
     "/my-orders",
     authMiddleware,
-    roleMiddleware("passenger"),
     getMyOrders
 );
 

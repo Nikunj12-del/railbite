@@ -36,7 +36,7 @@ function Dashboard({ user }) {
                     </p>
                 </div>
 
-                <div className="grid gap-5 sm:grid-cols-3">
+                <div className="grid gap-5 sm:grid-cols-2">
                     <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition duration-200 hover:-translate-y-1 hover:shadow-md dark:border-slate-800 dark:bg-slate-900">
                         <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-orange-100 text-2xl">
                             🍽️
@@ -78,27 +78,6 @@ function Dashboard({ user }) {
                             className="mt-5 inline-flex rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-slate-800 dark:bg-blue-700 dark:hover:bg-blue-600"
                         >
                             My Orders →
-                        </Link>
-                    </div>
-
-                    <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition duration-200 hover:-translate-y-1 hover:shadow-md dark:border-slate-800 dark:bg-slate-900">
-                        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-100 text-2xl">
-                            📋
-                        </div>
-
-                        <h3 className="mt-4 text-lg font-bold text-slate-900 dark:text-white">
-                            Pantry Workspace
-                        </h3>
-
-                        <p className="mt-2 text-sm leading-6 text-slate-500 dark:text-slate-400">
-                            Test live order status updates (Ready, Preparing, etc.) and watch real-time socket events.
-                        </p>
-
-                        <Link
-                            to="/pantry"
-                            className="mt-5 inline-flex rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-indigo-700"
-                        >
-                            Open Pantry →
                         </Link>
                     </div>
                 </div>

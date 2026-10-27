@@ -75,10 +75,10 @@ const initializeSocket = (httpServer) => {
     io.use((socket, next) => {
         const cookieHeader = socket.handshake.headers.cookie || "";
         const cookies = parseCookies(cookieHeader);
-        const token = cookies.token;
+        const token = cookies.token || socket.handshake.auth?.token;
 
         if (!token) {
-            console.log("Socket authentication failed: token cookie missing");
+            console.log("Socket authentication failed: token missing");
             return next(new Error("Authentication required"));
         }
 
@@ -112,7 +112,10 @@ const initializeSocket = (httpServer) => {
         const userId = socket.user.userId;
 
         socket.join(`user:${userId}`);
-        socket.join("pantry");
+
+        if (socket.user.role === "pantry_staff") {
+            socket.join("pantry");
+        }
 
         console.log(`Socket connected successfully: ${userId} (role: ${socket.user.role})`);
 

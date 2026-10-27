@@ -27,6 +27,9 @@ function DashboardLayout({ user, onLogout, onLogin }) {
         error.response?.data?.message || error.message
       );
     } finally {
+      try {
+        localStorage.removeItem("railbite_token");
+      } catch {}
       onLogout();
       navigate("/", { replace: true });
       setLoggingOut(false);

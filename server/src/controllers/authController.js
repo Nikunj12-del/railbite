@@ -65,6 +65,7 @@ const register = async (req, res) => {
 
         res.status(201).json({
             message: "Registration successful",
+            token,
             user: {
                 id: user._id,
                 fullName: user.fullName,
@@ -129,6 +130,7 @@ const login = async (req, res) => {
 
         res.json({
             message: "Login successful",
+            token,
             user: {
                 id: user._id,
                 fullName: user.fullName,
@@ -192,6 +194,7 @@ const resetPassword = async (req, res) => {
 
         res.json({
             message: "Password updated successfully",
+            token,
             user: {
                 id: user._id,
                 fullName: user.fullName,

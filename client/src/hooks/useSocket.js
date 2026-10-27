@@ -22,7 +22,15 @@ export function SocketProvider({ children, user = null }) {
         io(API_URL, {
             withCredentials: true,
             autoConnect: false,
-            transports: ["websocket", "polling"]
+            transports: ["websocket", "polling"],
+            auth: (cb) => {
+                try {
+                    const token = localStorage.getItem("railbite_token");
+                    cb({ token });
+                } catch {
+                    cb({});
+                }
+            }
         })
     );
     const [connected, setConnected] = useState(false);

@@ -49,6 +49,10 @@ function Register({
                 response.data.message || "Registration successful!"
             );
 
+            if (response.data.token) {
+                localStorage.setItem("railbite_token", response.data.token);
+            }
+
             if (onLogin && response.data.user) {
                 reconnectSocket();
                 onLogin(response.data.user);

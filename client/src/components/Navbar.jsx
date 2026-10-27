@@ -85,10 +85,20 @@ function Navbar({
           console.error("Could not clear login cookie:", logoutError);
         }
 
+        try {
+          localStorage.removeItem("railbite_token");
+        } catch {}
+
         setError(
           "Access denied: This account has the 'passenger' role. The Pantry Dashboard is reserved for pantry staff. Please use the pantry credentials (pantry@railbite.com / pantry123)."
         );
         return;
+      }
+
+      if (response.data.token) {
+        try {
+          localStorage.setItem("railbite_token", response.data.token);
+        } catch {}
       }
 
       if (typeof onLogin !== "function") {
@@ -235,25 +245,13 @@ function Navbar({
                   </div>
 
                   {user?.role === "passenger" && (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setMenuOpen(false);
-                          navigate("/pantry");
-                        }}
-                        className="w-full px-4 py-3 text-left text-sm font-medium text-slate-700 transition hover:bg-indigo-50 hover:text-indigo-700 dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-indigo-300"
-                      >
-                        Pantry Dashboard (Live Test)
-                      </button>
-                      <button
-                        type="button"
-                        onClick={openPantryLogin}
-                        className="w-full px-4 py-3 text-left text-sm font-medium text-slate-700 transition hover:bg-indigo-50 hover:text-indigo-700 dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-indigo-300"
-                      >
-                        Pantry Staff Login (Switch Account)
-                      </button>
-                    </>
+                    <button
+                      type="button"
+                      onClick={openPantryLogin}
+                      className="w-full px-4 py-3 text-left text-sm font-medium text-slate-700 transition hover:bg-indigo-50 hover:text-indigo-700 dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-indigo-300"
+                    >
+                      Pantry Staff Login
+                    </button>
                   )}
 
                   {user?.role === "pantry_staff" && (

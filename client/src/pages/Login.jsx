@@ -54,6 +54,10 @@ function Login({
                 password
             });
 
+            if (response.data.token) {
+                localStorage.setItem("railbite_token", response.data.token);
+            }
+
             reconnectSocket();
 
             onLogin(response.data.user || { email });
@@ -89,6 +93,10 @@ function Login({
                 email: email.trim().toLowerCase(),
                 newPassword
             });
+
+            if (response.data.token) {
+                localStorage.setItem("railbite_token", response.data.token);
+            }
 
             reconnectSocket();
 

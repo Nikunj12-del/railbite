@@ -14,5 +14,17 @@ const api = axios.create({
     }
 });
 
+api.interceptors.request.use((config) => {
+    try {
+        const token = localStorage.getItem("railbite_token");
+        if (token) {
+            config.headers.Authorization = `Bearer ${token}`;
+        }
+    } catch {
+        // Safe fallback in restricted environments
+    }
+    return config;
+});
+
 export { API_URL };
 export default api;
